@@ -1,0 +1,434 @@
+-----------------------------------
+title: 'Carrots or Sticks?'
+author: "Min Jee Oh"
+date: "2025-04-27"
+notes: STATA code 
+  html_document: default
+-----------------------------------
+
+// matching subsidy parent and gvkey data
+/// cleaning subsidy parent data 
+use subsidy_parent_org.dta
+gen parent_clean = lower(parent_name)
+replace parent_clean = trim(parent_clean)
+foreach suffix in inc incorporated corporation corp llc ltd limited co company holdings group lp l.p. pllc {
+    replace parent_clean = subinstr(parent_clean, "`suffix'", "", .)
+}
+replace parent_clean = subinstr(parent_clean, ".", "", .)
+replace parent_clean = subinstr(parent_clean, ",", "", .)
+replace parent_clean = subinstr(parent_clean, "-", " ", .)
+replace parent_clean = subinstr(parent_clean, "&", "and", .)
+replace parent_clean = subinstr(parent_clean, "'", "", .)
+replace parent_clean = subinstr(parent_clean, ".", "", .)
+replace parent_clean = subinstr(parent_clean, ",", "", .)
+replace parent_clean = subinstr(parent_clean, "-", " ", .)
+replace parent_clean = subinstr(parent_clean, "&", "and", .)
+replace parent_clean = subinstr(parent_clean, "'", "", .)
+replace parent_clean = regexr(parent_clean, " +", " ")
+replace parent_clean = trim(parent_clean)
+replace parent_clean = regexr(parent_clean, "^the ", "")
+save sub_parent.dta, replace 
+/// matching 
+use sub_parent.dta, clear
+use gvkey_cleaned.dta, clear
+matchit id_gvkey company_clean using sub_parent.dta, idu(s_id_parent) txtu(company_clean)
+sort similscore
+keep if similscore>0.85
+joinby s_id_parent using sub_parent.dta
+joinby id_gvkey using gvkey_cleaned.dta
+duplicates report id_gvkey
+duplicates report s_id_parent
+**after manually cleaning
+* Contains data from sub_parent_gvkey.dta
+*  Observations:         1,177                 
+save sub_parent_gvkey.dta, replace
+
+// matching violations parent and gvkey data
+/// cleaning violation parent data 
+use violation_parent_NA_org.dta, clear 
+gen parent_clean = lower(current_parent_name)
+replace parent_clean = trim(parent_clean)
+foreach suffix in inc incorporated corporation corp llc ltd limited co company holdings group lp l.p. pllc {
+    replace parent_clean = subinstr(parent_clean, "`suffix'", "", .)
+}
+replace parent_clean = subinstr(parent_clean, ".", "", .)
+replace parent_clean = subinstr(parent_clean, ",", "", .)
+replace parent_clean = subinstr(parent_clean, "-", " ", .)
+replace parent_clean = subinstr(parent_clean, "&", "and", .)
+replace parent_clean = subinstr(parent_clean, "'", "", .)
+replace parent_clean = subinstr(parent_clean, ".", "", .)
+replace parent_clean = subinstr(parent_clean, ",", "", .)
+replace parent_clean = subinstr(parent_clean, "-", " ", .)
+replace parent_clean = subinstr(parent_clean, "&", "and", .)
+replace parent_clean = subinstr(parent_clean, "'", "", .)
+replace parent_clean = regexr(parent_clean, " +", " ")
+replace parent_clean = trim(parent_clean)
+replace parent_clean = regexr(parent_clean, "^the ", "")
+gen v_id_parent = _n
+gen company_clean = parent_clean
+save vio_parent.dta, replace 
+
+///matching 
+use gvkey_cleaned.dta, clear
+matchit id_gvkey company_clean using vio_parent.dta, idu(v_id_parent) txtu(company_clean)
+sort similscore
+keep if similscore>0.85
+joinby v_id_parent using vio_parent.dta
+joinby id_gvkey using gvkey_cleaned.dta
+duplicates report id_gvkey
+duplicates report v_id_parent
+duplicates drop company_clean1, force
+duplicates drop company_clean, force
+**after manually cleaning
+*  Contains data
+*  Observations:         980
+save vio_parent_gvkey.dta, replace
+merge 1:1 id_gvkey using sub_parent_gvkey.dta
+
+// merging subsidy parent, violation parent, and gvkey data
+use vio_parent_gvkey.dta, clear 
+merge 1:1 id_gvkey using sub_parent_gvkey.dta
+save sub_vio_parent_gvkey.dta, replace
+
+// match subsidy parent gvkey with subsidy basic 
+use subsidy_basic_org.dta, clear 
+gen parent_clean = lower(parent_name)
+replace parent_clean = trim(parent_clean)
+foreach suffix in inc incorporated corporation corp llc ltd limited co company holdings group lp l.p. pllc {
+    replace parent_clean = subinstr(parent_clean, "`suffix'", "", .)
+}
+replace parent_clean = subinstr(parent_clean, ".", "", .)
+replace parent_clean = subinstr(parent_clean, ",", "", .)
+replace parent_clean = subinstr(parent_clean, "-", " ", .)
+replace parent_clean = subinstr(parent_clean, "&", "and", .)
+replace parent_clean = subinstr(parent_clean, "'", "", .)
+replace parent_clean = subinstr(parent_clean, ".", "", .)
+replace parent_clean = subinstr(parent_clean, ",", "", .)
+replace parent_clean = subinstr(parent_clean, "-", " ", .)
+replace parent_clean = subinstr(parent_clean, "&", "and", .)
+replace parent_clean = subinstr(parent_clean, "'", "", .)
+replace parent_clean = regexr(parent_clean, " +", " ")
+replace parent_clean = trim(parent_clean)
+replace parent_clean = regexr(parent_clean, "^the ", "")  
+gen parent_name_clean = lower(trim(parent_clean))
+save subsidy_basic_cleaned.dta, replace
+
+use sub_vio_parent_gvkey_a.dta, clear
+drop _merge
+gen parent_name_clean = lower(trim(parent_name))
+duplicates report parent_name_clean
+duplicates drop parent_name_clean, force
+save sub_vio_parent_gvkey_clean.dta, replace
+
+merge m:m parent_name_clean using subsidy_basic_cleaned.dta
+save sub_vio_gvkey.dta, replace
+
+// match violations parent gvkey with violations basic 
+use violation_basic_NA_org.dta, clear 
+gen parent_clean = lower(current_parent_name)
+replace parent_clean = trim(parent_clean)
+foreach suffix in inc incorporated corporation corp llc ltd limited co company holdings group lp l.p. pllc {
+    replace parent_clean = subinstr(parent_clean, "`suffix'", "", .)
+}
+replace parent_clean = subinstr(parent_clean, ".", "", .)
+replace parent_clean = subinstr(parent_clean, ",", "", .)
+replace parent_clean = subinstr(parent_clean, "-", " ", .)
+replace parent_clean = subinstr(parent_clean, "&", "and", .)
+replace parent_clean = subinstr(parent_clean, "'", "", .)
+replace parent_clean = subinstr(parent_clean, ".", "", .)
+replace parent_clean = subinstr(parent_clean, ",", "", .)
+replace parent_clean = subinstr(parent_clean, "-", " ", .)
+replace parent_clean = subinstr(parent_clean, "&", "and", .)
+replace parent_clean = subinstr(parent_clean, "'", "", .)
+replace parent_clean = regexr(parent_clean, " +", " ")
+replace parent_clean = trim(parent_clean)
+replace parent_clean = regexr(parent_clean, "^the ", "")  
+gen parent_name_clean = lower(trim(parent_clean))
+save violation_basic_cleaned.dta, replace
+
+use sub_vio_parent_gvkey_clean.dta, replace
+drop _merge
+merge m:m parent_name_clean using violation_basic_cleaned.dta
+save sub_vio_gvkey1.dta, replace
+
+// merge the two
+* subsidy data 
+use sub_vio_gvkey.dta, clear
+rename company_clean company_clean_gvkey
+rename company_clean1 parent_name_vio
+rename company company_subsidy
+gen company_clean_subsidy = lower(company_subsidy)
+replace company_clean_subsidy = trim(company_clean_subsidy)
+foreach suffix in inc incorporated corporation corp llc ltd limited co company holdings group lp l.p. pllc {
+    replace company_clean_subsidy = subinstr(company_clean_subsidy, "`suffix'", "", .)
+}
+replace company_clean_subsidy = subinstr(company_clean_subsidy, ".", "", .)
+replace company_clean_subsidy = subinstr(company_clean_subsidy, ",", "", .)
+replace company_clean_subsidy = subinstr(company_clean_subsidy, "-", " ", .)
+replace company_clean_subsidy = subinstr(company_clean_subsidy, "&", "and", .)
+replace company_clean_subsidy = subinstr(company_clean_subsidy, "'", "", .)
+replace company_clean_subsidy = subinstr(company_clean_subsidy, ".", "", .)
+replace company_clean_subsidy = subinstr(company_clean_subsidy, ",", "", .)
+replace company_clean_subsidy = subinstr(company_clean_subsidy, "-", " ", .)
+replace company_clean_subsidy = subinstr(company_clean_subsidy, "&", "and", .)
+replace company_clean_subsidy = subinstr(company_clean_subsidy, "'", "", .)
+replace company_clean_subsidy = regexr(company_clean_subsidy, " +", " ")
+replace company_clean_subsidy = trim(company_clean_subsidy)
+replace company_clean_subsidy = regexr(company_clean_subsidy, "^the ", "")
+
+collapse (sum) subsidy, by(id_gvkey sub_year)
+rename subsidy total_subsidy_per_year
+save firm_year_subsidy.dta, replace
+
+use sub_vio_gvkey.dta, clear
+keep id_gvkey ticker curr_cik curr_isin sector industry equitytype exchange hasaccess sp500 sp400 sp600 russell3000 parent_name_clean company_clean dhruvi_conm final_conm final_gvkey major_industry hq_country hq_state
+duplicates drop id_gvkey, force
+save firm_metadata.dta, replace
+
+use firm_year_subsidy.dta, clear
+merge m:1 id_gvkey using firm_metadata.dta
+sort company_clean sub_year
+drop in 1/44
+
+save subsidy_firm_year_gvkey.dta, replace
+
+*violation data
+use sub_vio_gvkey1.dta, clear
+rename company company_violation
+gen company_clean_violation = lower(company_violation)
+replace company_clean_violation = trim(company_clean_violation)
+foreach suffix in inc incorporated corporation corp llc ltd limited co company holdings group lp l.p. pllc {
+    replace company_clean_violation = subinstr(company_clean_violation, "`suffix'", "", .)
+}
+replace company_clean_violation = subinstr(company_clean_violation, ".", "", .)
+replace company_clean_violation = subinstr(company_clean_violation, ",", "", .)
+replace company_clean_violation = subinstr(company_clean_violation, "-", " ", .)
+replace company_clean_violation = subinstr(company_clean_violation, "&", "and", .)
+replace company_clean_violation = subinstr(company_clean_violation, "'", "", .)
+replace company_clean_violation = subinstr(company_clean_violation, ".", "", .)
+replace company_clean_violation = subinstr(company_clean_violation, ",", "", .)
+replace company_clean_violation = subinstr(company_clean_violation, "-", " ", .)
+replace company_clean_violation = subinstr(company_clean_violation, "&", "and", .)
+replace company_clean_violation = subinstr(company_clean_violation, "'", "", .)
+replace company_clean_violation = regexr(company_clean_violation, " +", " ")
+replace company_clean_violation = trim(company_clean_violation)
+replace company_clean_violation = regexr(company_clean_violation, "^the ", "")
+
+collapse (sum) penalty, by(id_gvkey penalty_year)
+rename subsidy total_subsidy_per_year
+save firm_year_vio.dta, replace
+merge m:1 id_gvkey using firm_metadata.dta
+sort company_clean penalty_year
+drop in 1/25
+rename penalty_year year
+drop _merge
+save vio_firm_year_gvkey.dta, replace
+
+use subsidy_firm_year_gvkey.dta, clear
+drop _merge
+rename sub_year year
+save subsidy_firm_year_gvkey.dta, replace
+
+merge 1:1 id_gvkey year using subsidy_firm_year_gvkey.dta
+
+replace total_penalty_per_year = 0 if missing(total_penalty_per_year)
+replace total_subsidy_per_year = 0 if missing(total_subsidy_per_year)
+
+drop _merge
+
+save firm_year_panel_sub_vio.dta, replace
+
+*ESG 
+use esg.dta, clear 
+collapse (mean) valuescore, by(year comname fieldname)
+reshape wide valuescore, i(year comname) j(fieldname) string
+save esg_value.dta, replace
+merge m:m comname year using esg.dta
+save esg_clean.dta, replace
+
+*esg and gvkey 
+use esg_clean.dta, clear 
+gen company_clean_esg = lower(comname)
+replace company_clean_esg = trim(company_clean_esg)
+foreach suffix in inc incorporated corporation corp llc ltd limited co company holdings group lp l.p. pllc {
+    replace company_clean_esg = subinstr(company_clean_esg, "`suffix'", "", .)
+}
+replace company_clean_esg = subinstr(company_clean_esg, ".", "", .)
+replace company_clean_esg = subinstr(company_clean_esg, ",", "", .)
+replace company_clean_esg = subinstr(company_clean_esg, "-", " ", .)
+replace company_clean_esg = subinstr(company_clean_esg, "&", "and", .)
+replace company_clean_esg = subinstr(company_clean_esg, "'", "", .)
+replace company_clean_esg = subinstr(company_clean_esg, ".", "", .)
+replace company_clean_esg = subinstr(company_clean_esg, ",", "", .)
+replace company_clean_esg = subinstr(company_clean_esg, "-", " ", .)
+replace company_clean_esg = subinstr(company_clean_esg, "&", "and", .)
+replace company_clean_esg = subinstr(company_clean_esg, "'", "", .)
+replace company_clean_esg = regexr(company_clean_esg, " +", " ")
+replace company_clean_esg = trim(company_clean_esg)
+replace company_clean_esg = regexr(company_clean_esg, "^the ", "")
+duplicates drop company_clean_esg, force
+save esg_clean.dta, clear
+
+matchit id_esg company_clean using gvkey_cleaned.dta, idu(id_gvkey) txtu(company_clean)
+sort similscore
+keep if similscore>0.85
+joinby id_esg using esg_clean.dta
+joinby id_gvkey using gvkey_cleaned.dta
+duplicates drop id_esg, force
+duplicates drop id_gvkey, force
+save esg_gvkey.dta, replace
+
+joinby id_gvkey using firm_year_panel_sub_vio.dta
+save esg_sub_vio.dta, replace
+
+use esg_sub_vio.dta, clear
+collapse (mean) valuescoreESGCControversiesScore valuescoreESGCombinedScore valuescoreESGScore valuescoreEnvironmentPillarScore valuescoreGovernancePillarScore valuescoreSocialPillarScore (sum) total_subsidy_per_year total_penalty_per_year, by (id_gvkey year)
+save gv_sub_vio_esg.dta, replace
+
+use gv_sub_vio_esg.dta, clear
+merge m:m id_gvkey year using esg_sub_vio.dta
+duplicates drop
+* Contains data from gv_sub_vio_esg.dta
+* Observations:           946                  
+*    Variables:            73 
+
+
+-----------------------------------
+notes: R code 
+  html_document: default
+-----------------------------------
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE) 
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+
+options(scipen=999) 
+set.seed(1234)
+library(tidyverse)
+library(ggplot2)
+library(haven) 
+library(modelsummary)
+library(dplyr)
+library(tidyr)
+library(corrplot)
+install.packages("fixest")
+library(fixest)
+library(sandwich)
+library(lmtest)
+
+
+```
+
+```{r}
+#loading datasets
+esv <- read_dta("~/Downloads/esg_sub_vio.dta")
+view(esv)
+```
+
+```{r}
+names(esv)
+esv <- esv %>%
+  rename(
+    esg_c = valuescoreESGCControversiesScore,
+    esg_score = valuescoreESGScore,
+    esg_e = valuescoreEnvironmentPillarScore,
+    esg_g = valuescoreGovernancePillarScore,
+    esg_s = valuescoreSocialPillarScore,
+    vio = total_penalty_per_year,
+    sub = total_subsidy_per_year
+  )
+
+esv <- esv %>%
+  mutate(
+    sub_m = sub / 1e6,
+    vio_m = vio / 1e6, 
+    sub_b = sub / 1e9, 
+    vio_b = vio / 1e9
+  )
+
+esv <- esv %>%
+  filter(!country %in% c("CANADA", "CAYMAN ISLANDS", "UNITED KINGDOM"))
+esv <- esv %>% 
+  filter(hq_country == "USA")
+
+datasummary_skim(esv)
+
+esv_1 <- esv %>% 
+  select(company_clean, year, esg_score, esg_e, esg_s, esg_g, vio, sub, vio_m, sub_m, vio_b, sub_b)
+
+duplicated(esv_1$firm)
+
+#Sample Descriptive Statistics
+datasummary_skim(esv_1)
+
+#Correlation Table 
+selected_vars <- esv_1 %>% 
+  select(esg_score, esg_e, esg_s, esg_g, vio, sub, vio_m, sub_m, vio_b, sub_b)
+cor_matrix <- cor(selected_vars, use = "complete.obs")
+corrplot(cor_matrix, method = "circle", diag = FALSE, type = "lower",
+         order = "hclust",      # Orders variables based on hierarchical clustering
+         tl.srt = 45,           # Set text label angle for the top labels
+         tl.offset = 0.5,       # Increase offset to move text labels closer to the grid
+         tl.cex = 0.6,          # Font size of text labels
+         tl.col = "black",      # Label color
+         number.cex = 0.8,      # Adjust size of numbers inside circles
+         addCoef.col = "black", # Color of the correlation coefficients
+         cl.pos = 'n',          # Removes legend
+         is.corr = TRUE)        # Ensure it interprets values as correlations for formatting
+```
+
+```{r}
+# Step 1: Create peer effect variables
+esv <- esv %>%
+  group_by(industry, hq_state, year) %>%
+  mutate(
+    peer_sub_b = (sum(sub_b, na.rm = TRUE) - sub_b) / (n() - 1),
+    peer_vio_b = (sum(vio_b, na.rm = TRUE) - vio_b) / (n() - 1)
+  ) %>%
+  ungroup()
+
+# Step 2: List of dependent variables
+dvs <- c("esg_score", "esg_e", "esg_s", "esg_g")
+
+# Step 3: Run different models in a loop
+models <- list()
+
+for (dv in dvs) {
+  
+  # 1. Baseline regression (no fixed effects, no peer effects)
+  models[[paste0(dv, "_baseline")]] <- feols(
+    as.formula(paste0(dv, " ~ sub_b + vio_b")),
+    data = esv
+  )
+  
+  # 2. With fixed effects (industry, year, state)
+  models[[paste0(dv, "_fe")]] <- feols(
+    as.formula(paste0(dv, " ~ sub_b + vio_b | industry + year + hq_state")),
+    data = esv
+  )
+  
+  # 3. With fixed effects + peer effects
+  models[[paste0(dv, "_peer")]] <- feols(
+    as.formula(paste0(dv, " ~ sub_b + vio_b + peer_sub + peer_vio | industry + year + hq_state")),
+    data = esv
+  )
+}
+
+# Step 4: Output the models into a table
+modelsummary(models[grepl("_baseline$", names(models))], stars = TRUE, se = "hetero")
+modelsummary(models[grepl("_fe$", names(models))], stars = TRUE, vcov = ~ company_clean)
+modelsummary(models[grepl("_peer$", names(models))], stars = TRUE, vcov = ~ company_clean)
+
+```
+
+```{r}
+#Robustness check 
+m.r <- coeftest(models, vcov = vcovHC(models, type = "HC1")) 
+print(m.r)
+```
+
+```{r}
+
+```
